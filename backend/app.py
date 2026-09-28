@@ -9,12 +9,13 @@ from . import judge as judge_mod
 from . import db
 from . import auth
 from . import synapse
+from . import adversaires as adv
 
 # ---- config (jamais d'IP en dur : tout via .env) ----
 OLLAMA_URL      = os.getenv("OLLAMA_URL", "http://127.0.0.1:11434").rstrip("/")
 OLLAMA_MODEL    = os.getenv("OLLAMA_MODEL", "qwen3:14b")
-CLAUDE_MODE     = os.getenv("CLAUDE_MODE", "cli").lower()   # "cli" = Claude Code (abo Max) | "api" = clé API
-ANTHROPIC_KEY   = os.getenv("ANTHROPIC_API_KEY", "")
+# L'adversaire du duel (Claude Code, API Anthropic, ChatGPT, Kimi…) : voir adversaires.py.
+# CLAUDE_MODE / ANTHROPIC_API_KEY / CLAUDE_MODEL restent lus pour les anciens .env.
 CLAUDE_MODEL    = os.getenv("CLAUDE_MODEL", "claude-opus-4-8")
 CLAUDE_BIN      = os.getenv("CLAUDE_BIN", "claude")
 
@@ -26,8 +27,9 @@ def claude_env():
     env = dict(os.environ)
     env.setdefault("HOME", os.path.expanduser("~"))
     env["PATH"] = env.get("PATH", "") + ":" + env["HOME"] + "/.local/bin:/usr/local/bin"
-    if CLAUDE_MODE == "cli":
-        env.pop("ANTHROPIC_API_KEY", None)
+    # sans clé d'API dans son environnement, Claude Code reste sur l'abonnement
+    env.pop("ANTHROPIC_API_KEY", None)
+    env.pop("ADVERSAIRE_CLE", None)
     return env
 
 
@@ -155,36 +157,6 @@ def guard(model: str) -> str:
     return model
 
 
-async def ask_claude_cli(prompt, ctx):
-    """Claude via Claude Code (mode headless -p) — utilise l'abo Max, aucune clé."""
-    cbin = find_claude()
-    if not cbin:
-        return {"model": CLAUDE_MODEL, "error": "Binaire 'claude' introuvable — mets CLAUDE_BIN=/chemin/vers/claude dans .env", "ms": 0}
-    model = guard(CLAUDE_MODEL)
-    full = (f"Contexte externe :\n{ctx}\n\n{prompt}") if ctx else prompt
-    t0 = time.time()
-    try:
-        proc = await asyncio.create_subprocess_exec(
-            cbin, "-p", full,
-            "--output-format", "json",
-            "--model", model,
-            "--append-system-prompt", persona(),
-            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
-            env=claude_env(),
-        )
-        out, err = await asyncio.wait_for(proc.communicate(), timeout=240)
-        ms = int((time.time() - t0) * 1000)
-        if proc.returncode != 0:
-            return {"model": model, "error": f"claude -p code {proc.returncode}: {err.decode()[:180]}", "ms": ms}
-        j = json.loads(out.decode())
-        return {"model": model, "text": j.get("result", ""),
-                "tokens": (j.get("usage") or {}).get("output_tokens"), "ms": ms}
-    except asyncio.TimeoutError:
-        return {"model": model, "error": "timeout (240s)", "ms": int((time.time() - t0) * 1000)}
-    except Exception as e:
-        return {"model": model, "error": str(e), "ms": int((time.time() - t0) * 1000)}
-
-
 async def ask_ollama(client, prompt, ctx):
     sys = "Tu es un assistant expert (code et culture générale). Réponds de façon concise et directe."
     if ctx:
@@ -209,36 +181,6 @@ async def ask_ollama(client, prompt, ctx):
                 "ms": int((time.time() - t0) * 1000)}
 
 
-async def ask_claude_api(client, prompt, ctx):
-    if not ANTHROPIC_KEY:
-        return {"model": CLAUDE_MODEL, "error": "Clé ANTHROPIC_API_KEY manquante (voir .env)", "ms": 0}
-    model = guard(CLAUDE_MODEL)
-    sys = "Tu es un assistant expert (code et culture générale). Réponds de façon concise et directe."
-    if ctx:
-        sys += f"\n\nContexte externe :\n{ctx}"
-    t0 = time.time()
-    try:
-        r = await client.post("https://api.anthropic.com/v1/messages",
-            headers={"x-api-key": ANTHROPIC_KEY,
-                     "anthropic-version": "2023-06-01",
-                     "content-type": "application/json"},
-            json={"model": model, "max_tokens": MAX_TOKENS,
-                  "system": sys,
-                  "messages": [{"role": "user", "content": prompt}]},
-            timeout=180)
-        if r.status_code >= 400:
-            return {"model": model, "error": f"API {r.status_code}: {r.text[:180]}",
-                    "ms": int((time.time() - t0) * 1000)}
-        j = r.json()
-        text = "".join(b.get("text", "") for b in j.get("content", []) if b.get("type") == "text")
-        usage = j.get("usage", {})
-        return {"model": model, "text": text,
-                "tokens": usage.get("output_tokens"),
-                "ms": int((time.time() - t0) * 1000)}
-    except Exception as e:
-        return {"model": model, "error": str(e), "ms": int((time.time() - t0) * 1000)}
-
-
 async def get_context(client, q):
     """Contexte fourni par un service de mémoire externe (optionnel)."""
     if not MEMORY_URL:
@@ -255,7 +197,7 @@ async def get_context(client, q):
     return ""
 
 
-VERSION = "1.1.0"
+VERSION = "1.2.0"
 
 
 @app.get("/healthz")
@@ -272,16 +214,14 @@ async def duel(req: DuelReq):
         ctx = await get_context(client, req.q)
         tasks = [ask_ollama(client, req.q, ctx)]
         if not req.noclaude:
-            if CLAUDE_MODE == "cli":
-                tasks.append(ask_claude_cli(req.q, ctx))
-            else:
-                tasks.append(ask_claude_api(client, req.q, ctx))
+            tasks.append(demander_adversaire(req.q, ctx, req.claude_model))
         res = await asyncio.gather(*tasks)
     qwen = res[0]
-    claude = res[1] if not req.noclaude and len(res) > 1 else {"model": CLAUDE_MODEL, "text": ""}
+    claude = res[1] if not req.noclaude and len(res) > 1 else {"model": "", "text": ""}
     verdict = judge_mod.judge(qwen, claude, noclaude=req.noclaude)
     if not req.noclaude:
-        synapse.duel(req.q, verdict, qwen.get("model", ""), claude.get("model", ""))
+        synapse.duel(req.q, verdict, qwen.get("model", ""), claude.get("model", ""),
+                     adv.actuel()["nom"])
     return {"context": (ctx[:80] + "…") if ctx else "", "qwen": qwen, "claude": claude,
             "verdict": verdict}
 
@@ -446,9 +386,9 @@ async def stream_claude(q, ctx, out, model=None):
     """Producteur : pousse les deltas Claude (Claude Code, abo Max) dans la queue `out`."""
     cbin = find_claude()
     if not cbin:
-        await out.put(("meta", {"side": "claude", "model": model or CLAUDE_MODEL,
+        await out.put(("meta", {"side": "claude", "model": model or "claude",
                                 "error": "Binaire 'claude' introuvable — mets CLAUDE_BIN=/chemin/vers/claude dans .env", "ms": 0})); return
-    model = guard(model or CLAUDE_MODEL)
+    model = guard(model or adv.CLAUDE_DEFAUT)
     full_prompt = (f"Contexte externe :\n{ctx}\n\n{q}") if ctx else q
     t0 = time.time(); full = []
     try:
@@ -501,6 +441,53 @@ async def stream_claude(q, ctx, out, model=None):
                                 "error": str(e), "ms": int((time.time()-t0)*1000)}))
 
 
+def _modele_retenu(f, cfg):
+    """Le modèle choisi dans les réglages d'Oracle pour CET adversaire — sauf si
+    le Hub a changé ADVERSAIRE_MODELE depuis : le choix le plus récent l'emporte."""
+    r = (cfg.get("modeles_adversaire") or {}).get(f["id"]) or {}
+    if r.get("env", "") != (f.get("modele_env") or ""):
+        return None
+    return r.get("modele")
+
+
+async def modele_adversaire(f, demande=None):
+    cfg = load_cfg()
+    ancien = cfg.get("claude_model") if adv.est_claude(f) else None
+    return await adv.choisir_modele(f, demande, _modele_retenu(f, cfg), ancien)
+
+
+async def stream_adversaire(q, ctx, out, demande=None):
+    """Producteur côté adversaire : Claude Code, API Anthropic ou API compatible OpenAI."""
+    f = adv.actuel()
+    manque = adv.pret(f)
+    modele = None if manque else await modele_adversaire(f, demande)
+    if manque or not modele:
+        await out.put(("meta", {"side": "claude", "model": modele or f["nom"], "ms": 0,
+                                "error": manque or f"Choisis le modèle de {f['nom']} dans les réglages d'Oracle."}))
+        return
+    if f["genre"] == "cli":
+        await stream_claude(q, ctx, out, modele)
+        return
+    systeme = persona() + (f"\n\nContexte externe :\n{ctx}" if ctx else "")
+    n = int(load_cfg().get("num_predict") or 2048)
+    if f["genre"] == "anthropic":
+        await adv.stream_anthropic(f, modele, systeme, q, out, n)
+    else:
+        await adv.stream_openai(f, modele, systeme, q, out, n)
+
+
+async def demander_adversaire(q, ctx, demande=None):
+    """La même chose, d'un bloc (action « Lancer un duel » du Hub)."""
+    out = asyncio.Queue()
+    await stream_adversaire(q, ctx, out, demande)
+    meta = None
+    while not out.empty():
+        kind, data = out.get_nowait()
+        if kind == "meta":
+            meta = data
+    return meta or {"model": "", "error": "aucune réponse", "ms": 0}
+
+
 @app.post("/api/duel/stream")
 async def duel_stream(req: DuelReq, request: Request):
     user = require_user(request)
@@ -516,7 +503,7 @@ async def duel_stream(req: DuelReq, request: Request):
 
         cfg = load_cfg()
         om = req.ollama_model or cfg.get("ollama_model")
-        cm = req.claude_model or cfg.get("claude_model")
+        cm = req.claude_model
 
         # pièces jointes → injectées dans le contexte
         att_text, att_images = build_attachments(req.attachments)
@@ -544,7 +531,7 @@ async def duel_stream(req: DuelReq, request: Request):
                         history.append({"role": "assistant", "content": dd["qwen_text"]})
         producers = [asyncio.create_task(stream_ollama(req.q, ctx, out, om, history))]
         if not req.noclaude:
-            producers.append(asyncio.create_task(stream_claude(req.q, ctx, out, cm)))
+            producers.append(asyncio.create_task(stream_adversaire(req.q, ctx, out, cm)))
 
         qwen_meta, claude_meta = None, None
         expected = 1 + (0 if req.noclaude else 1)
@@ -564,7 +551,8 @@ async def duel_stream(req: DuelReq, request: Request):
         claude_meta = claude_meta or {"model": cm, "text": ""}
         verdict = judge_mod.judge(qwen_meta, claude_meta, noclaude=req.noclaude, question=req.q)
         if not req.noclaude:
-            synapse.duel(req.q, verdict, qwen_meta.get("model", ""), claude_meta.get("model", ""))
+            synapse.duel(req.q, verdict, qwen_meta.get("model", ""), claude_meta.get("model", ""),
+                         adv.actuel()["nom"])
         conv_id = req.conv_id or db.new_conversation(req.q, "qwen" if req.noclaude else "duel", user_id=user["id"])
         did = db.save_duel(conv_id, req.q, "qwen" if req.noclaude else "duel", qwen_meta, claude_meta, verdict)
         yield f'data: {json.dumps({"t":"verdict","verdict":verdict,"id":did,"conv_id":conv_id})}\n\n'
@@ -588,10 +576,17 @@ async def models():
             installed = [m["name"] for m in r.json().get("models", [])]
         except Exception as e:
             ollama_error = f"Ollama injoignable sur {OLLAMA_URL} ({type(e).__name__})"
+    f = adv.actuel()
+    liste = await adv.modeles(f)
+    modele = None if adv.pret(f) else await modele_adversaire(f)
+    cfg = load_cfg()
+    cfg["claude_model"] = modele or ""        # le modèle de l'adversaire en service
+    # « claude » garde son nom pour l'interface : c'est la liste de l'adversaire
     return {"installed": installed, "catalog": CATALOG,
             "ollama_error": ollama_error, "ollama_url": OLLAMA_URL,
-            "claude": ["claude-opus-4-8", "claude-sonnet-4-6", "claude-haiku-4-5"],
-            "config": load_cfg()}
+            "claude": liste if not modele or modele in liste else [modele, *liste],
+            "adversaire": adv.public(f, modele, liste),
+            "config": cfg}
 
 
 class Cfg(BaseModel):
@@ -605,12 +600,26 @@ class Cfg(BaseModel):
 
 @app.post("/api/config")
 async def set_config(c: Cfg):
-    if c.claude_model:
-        guard(c.claude_model)
+    d = c.model_dump()
+    choix = d.pop("claude_model", None)
     avant = load_cfg()
-    apres = save_cfg(c.model_dump())
+    if choix:
+        f = adv.actuel()
+        try:
+            choix = adv.garde(f, choix)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+        # retenu pour CET adversaire, avec la valeur du Hub au moment du choix
+        retenus = dict(avant.get("modeles_adversaire") or {})
+        retenus[f["id"]] = {"modele": choix, "env": f.get("modele_env") or ""}
+        d["modeles_adversaire"] = retenus
+        if adv.est_claude(f):
+            d["claude_model"] = choix
+    apres = save_cfg(d)
     changes = {k: apres[k] for k in ("ollama_model", "claude_model", "mode")
                if k in apres and apres.get(k) != avant.get(k)}
+    if choix and (avant.get("modeles_adversaire") or {}) != (apres.get("modeles_adversaire") or {}):
+        changes["adversaire"] = f"{adv.actuel()['nom']} {choix}"
     if changes:
         synapse.reglage("Oracle : réglage changé — "
                         + ", ".join(f"{k} → {v}" for k, v in changes.items()), changes)
@@ -997,11 +1006,9 @@ async def health():
             models, ollama_ok = [], False
     return {"version": VERSION,
             "ollama": ollama_ok, "ollama_url": OLLAMA_URL, "models": models,
-            "ollama_model": OLLAMA_MODEL, "claude_model": CLAUDE_MODEL,
-            "claude_mode": CLAUDE_MODE,
-            "claude_cli": bool(find_claude()) if CLAUDE_MODE == "cli" else None,
-            "claude_path": find_claude() if CLAUDE_MODE == "cli" else None,
-            "anthropic_key": bool(ANTHROPIC_KEY) if CLAUDE_MODE == "api" else None,
+            "ollama_model": OLLAMA_MODEL,
+            "adversaire": adv.public(adv.actuel()),
+            "claude_cli": bool(find_claude()) if adv.actuel()["genre"] == "cli" else None,
             "memory": bool(MEMORY_URL)}
 
 

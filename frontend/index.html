@@ -969,7 +969,7 @@ body.light .save-btn{background:linear-gradient(170deg,#1a1c22,#3a3e48);color:#f
           <div style="position:relative">
             <button class="mode" id="modeBtn">Duel <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg></button>
             <div class="plus-menu" id="modeMenu" style="left:auto;right:0;width:180px">
-              <button class="pm" data-mode="duel">Duel<small>Qwen vs Claude</small></button>
+              <button class="pm" data-mode="duel">Duel<small>Qwen vs <span data-adv-nom>Claude</span></small></button>
               <button class="pm" data-mode="qwen">Qwen seul<small>/noclaude</small></button>
             </div>
           </div>
@@ -1025,7 +1025,7 @@ body.light .save-btn{background:linear-gradient(170deg,#1a1c22,#3a3e48);color:#f
 <div class="overlay" id="statsOverlay">
   <div class="modal" role="dialog" aria-label="Statistiques Qwen">
     <div class="modal-head">
-      <h3>Progression Qwen vs Claude</h3>
+      <h3>Progression Qwen vs <span data-adv-nom>Claude</span></h3>
       <button class="x" id="statsClose" aria-label="Fermer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
     </div>
     <div class="stats-body">
@@ -1068,10 +1068,6 @@ body.light .save-btn{background:linear-gradient(170deg,#1a1c22,#3a3e48);color:#f
             <input class="inp" id="ollamaUrl" type="text" value="http://127.0.0.1:11434">
             <button class="test-btn" id="testOllama">Tester</button>
           </div>
-        </div>
-        <div class="field">
-          <label>Clé API Anthropic <span class="hint">— pour Claude</span></label>
-          <input class="inp" type="password" placeholder="sk-ant-…">
         </div>
       </div>
 
@@ -1129,14 +1125,12 @@ body.light .save-btn{background:linear-gradient(170deg,#1a1c22,#3a3e48);color:#f
       </div>
 
       <div class="set-group">
-        <div class="set-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2 2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>Routeur modèles Claude</div>
-        <div class="set-desc">Trois slots choisis selon le besoin. Remplace par la meilleure version standard quand elle sort.</div>
-        <div class="field-grid-3">
-          <div class="field"><label>Modèle Claude du duel</label><select class="inp" id="claudeModel"></select></div>
-          <div class="field"><label>Précision</label><select class="inp" disabled><option>claude-sonnet-4-6</option></select></div>
-          <div class="field"><label>Simple</label><select class="inp" disabled><option>claude-haiku-4-5</option></select></div>
+        <div class="set-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2 2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg><span id="advTitre">Adversaire du duel</span></div>
+        <div class="set-desc" id="advDesc">Le modèle local affronte l'adversaire réglé dans le Hub.</div>
+        <div class="field-grid">
+          <div class="field"><label>Modèle de l'adversaire <span class="hint">— liste du fournisseur</span></label><select class="inp" id="claudeModel"></select></div>
         </div>
-        <div class="guard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>Garde-fou actif : tout identifiant contenant « fable » ou « mythos » est rejeté avant l'appel.</div>
+        <div class="guard" id="advGuard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>Garde-fou actif : tout identifiant contenant « fable » ou « mythos » est rejeté avant l'appel, et seuls opus, sonnet et haiku sont admis.</div>
       </div>
 
       <div class="set-group">
@@ -1416,9 +1410,9 @@ async function runDuel(q){
     aiBody=m.querySelector('.ai-body');
   }else{
     // ---- mode DUEL : deux cartes ----
-    ctx=add('<div class="ctx">Duel lancé — Qwen (local) vs Claude (Max)…</div>');
+    ctx=add('<div class="ctx">Duel lancé — Qwen (local) vs '+esc(ADV.nom)+'…</div>');
     d=add(`<div class="duel">
-      <div class="card lg c"><div class="ch"><div class="ava">C</div><div><b>Claude</b><small id="mdlC">…</small></div><span class="sc">—</span></div><div class="code" id="codeC">→ Claude Code…</div><div class="cm-row"><span>Latence <b class="m1">—</b></span></div></div>
+      <div class="card lg c"><div class="ch"><div class="ava">${advInitiale(ADV.nom)}</div><div><b>${esc(ADV.nom)}</b><small id="mdlC">…</small></div><span class="sc">—</span></div><div class="code" id="codeC">→ ${ADV.genre==='cli'?'Claude Code':esc(ADV.nom)}…</div><div class="cm-row"><span>Latence <b class="m1">—</b></span></div></div>
       <div class="card lg q"><div class="ch"><div class="ava">Q</div><div><b>Qwen</b><small id="mdlQ">…</small></div><span class="sc">—</span></div><div class="code" id="codeQ">→ Ollama…</div><div class="cm-row"><span>Latence <b class="m1">—</b></span></div></div>
     </div>`);
     cC=d.querySelector('.card.c');cQ=d.querySelector('.card.q');
@@ -1494,7 +1488,7 @@ async function runDuel(q){
       if(err.name==='AbortError'){
         if(noclaude&&aiBody)aiBody.innerHTML=md(buf.qwen)+'<div class="ai-meta">⏹ arrêté</div>';
       }else{
-        const msg='⚠ Erreur : '+esc(err.message)+' — vérifie le backend / Ollama / Claude Code.';
+        const msg='⚠ Erreur : '+esc(err.message)+' — vérifie le backend / Ollama / '+esc(ADV.nom)+'.';
         if(noclaude&&aiBody)aiBody.innerHTML=msg; else if(ctx)ctx.innerHTML=msg;
       }
     }catch(e){}
@@ -1536,12 +1530,12 @@ function judge(d,cC,cQ,data,noclaude){
   }).join('');
 
   const dl=(v.delta&&v.delta.length)
-    ? `<b>Delta (ce que ${v.winner==='claude'?'Claude':'Qwen'} a en plus) :</b> ${v.delta.join(', ')}.`
+    ? `<b>Delta (ce que ${v.winner==='claude'?esc(ADV.nom):'Qwen'} a en plus) :</b> ${v.delta.join(', ')}.`
     : `Les deux réponses couvrent les mêmes points mesurables.`;
 
   const badge=noclaude
     ? 'Qwen seul'
-    : `Victoire ${v.winner==='claude'?'Claude':'Qwen'} · ${(v.winner==='claude'?c.total:q.total)} vs ${(v.winner==='claude'?q.total:c.total)}`;
+    : `Victoire ${v.winner==='claude'?esc(ADV.nom):'Qwen'} · ${(v.winner==='claude'?c.total:q.total)} vs ${(v.winner==='claude'?q.total:c.total)}`;
 
   const el=add(`<div class="verdict lg">
     <div class="v-head">
@@ -1812,12 +1806,36 @@ document.addEventListener('pointermove',e=>{
 
 /* ===== MODÈLES & CONFIG ===== */
 let CONF={ollama_model:'qwen3:14b',claude_model:'claude-opus-4-8',mode:'duel',thinking:false};
+// L'adversaire du duel : Claude, ChatGPT, Kimi… — réglé à l'installation, lu sur /api/models.
+let ADV={id:'claude-code',nom:'Claude',claude:true,modeles:[],manque:null};
+// Nom d'un adversaire d'après son modèle : un duel passé garde le sien.
+function advNom(m){
+  const x=String(m||'').toLowerCase();
+  if(!x)return ADV.nom;
+  if(x.includes('claude'))return 'Claude';
+  if(/^(gpt|o\d|chatgpt)|\/gpt/.test(x))return 'ChatGPT';
+  if(x.includes('kimi')||x.includes('moonshot'))return 'Kimi';
+  if(/mistral|magistral|codestral|ministral|pixtral/.test(x))return 'Mistral';
+  if(x.includes('deepseek'))return 'DeepSeek';
+  if(x.includes('gemini')||x.includes('gemma'))return 'Gemini';
+  return ADV.nom;
+}
+function advInitiale(n){return esc(String(n||'?').charAt(0).toUpperCase())}
+function majLibellesAdv(){
+  document.querySelectorAll('[data-adv-nom]').forEach(e=>e.textContent=ADV.nom);
+  const t=$('advTitre');if(t)t.textContent='Adversaire du duel : '+ADV.nom;
+  const d=$('advDesc');if(d)d.textContent=ADV.manque?('⚠ '+ADV.manque+' — à régler dans le Hub (Extensions → Oracle → Configuration).')
+    :('Le modèle local affronte '+ADV.nom+'. Le fournisseur se change dans le Hub ; le modèle se choisit ici, dans la liste que '+ADV.nom+' renvoie.');
+  const g=$('advGuard');if(g)g.style.display=ADV.claude?'':'none';
+}
 let INSTALLED=[];
 
 async function loadModels(){
   try{
     const r=await fetch('/api/models');const m=await r.json();
     CONF={...CONF,...(m.config||{})};
+    if(m.adversaire)ADV={...ADV,...m.adversaire};
+    majLibellesAdv();
     const ls=$('localModel');ls.innerHTML='';
     (m.installed||[]).filter(n=>!n.includes('embed')).forEach(n=>{
       const v=n.replace(':latest','');const o=document.createElement('option');o.value=v;o.textContent=n;
@@ -1833,6 +1851,7 @@ async function loadModels(){
     if($('numCtx'))$('numCtx').value=String(CONF.num_ctx||8192);
     if($('numPredict'))$('numPredict').value=String(CONF.num_predict||2048);
     const cs=$('claudeModel');cs.innerHTML='';
+    if(!CONF.claude_model){const o=document.createElement('option');o.value='';o.textContent=(m.claude||[]).length?'— choisis un modèle —':'aucun modèle proposé';o.selected=true;cs.appendChild(o);}
     (m.claude||[]).forEach(n=>{const o=document.createElement('option');o.value=n;o.textContent=n;if(n===CONF.claude_model)o.selected=true;cs.appendChild(o);});
     const inst=new Set((m.installed||[]).map(x=>x.replace(':latest','')));
     $('catalog').innerHTML=(m.catalog||[]).map(c=>{
@@ -2068,7 +2087,7 @@ function renderTurn(x){
   }
   add('<div class="msg-user">'+esc(x.question)+'</div>');
   const d=add(`<div class="duel">
-    <div class="card lg c"><div class="ch"><div class="ava">C</div><div><b>Claude</b><small>${esc(x.claude_model||'')}</small></div><span class="sc on">${(x.verdict&&x.verdict.claude)?x.verdict.claude.total:'—'}</span></div><div class="code">${esc(x.claude_text||'(vide)')}</div><div class="cm-row"><span>Latence <b>${x.claude_ms?(x.claude_ms/1000).toFixed(1)+' s':'—'}</b></span></div></div>
+    <div class="card lg c"><div class="ch"><div class="ava">${advInitiale(advNom(x.claude_model))}</div><div><b>${esc(advNom(x.claude_model))}</b><small>${esc(x.claude_model||'')}</small></div><span class="sc on">${(x.verdict&&x.verdict.claude)?x.verdict.claude.total:'—'}</span></div><div class="code">${esc(x.claude_text||'(vide)')}</div><div class="cm-row"><span>Latence <b>${x.claude_ms?(x.claude_ms/1000).toFixed(1)+' s':'—'}</b></span></div></div>
     <div class="card lg q"><div class="ch"><div class="ava">Q</div><div><b>Qwen</b><small>${esc(x.qwen_model||'')}</small></div><span class="sc on">${(x.verdict&&x.verdict.qwen)?x.verdict.qwen.total:'—'}</span></div><div class="code">${esc(x.qwen_text||'(vide)')}</div><div class="cm-row"><span>Latence <b>${x.qwen_ms?(x.qwen_ms/1000).toFixed(1)+' s':'—'}</b></span></div></div>
   </div>`);
   if(x.winner)d.querySelector(x.winner==='claude'?'.card.c':'.card.q').classList.add('winner');
@@ -2100,7 +2119,7 @@ async function loadStats(){
         <div class="stat-card"><div class="n ${s.qwen_winrate>=50?'up':''}">${s.qwen_winrate}%</div><div class="l">victoires Qwen</div></div>
         <div class="stat-card"><div class="n">${s.avg_qwen}</div><div class="l">score moyen Qwen</div></div>
       </div>
-      <div class="chart-lbl">Score moyen : Qwen ${s.avg_qwen} · Claude ${s.avg_claude} (${s.judged} duels jugés)</div>
+      <div class="chart-lbl">Score moyen : Qwen ${s.avg_qwen} · ${esc(ADV.nom)} ${s.avg_claude} (${s.judged} duels jugés)</div>
       <div class="chart" id="chart"></div>`;
     drawGaps(s.gaps);
   }catch(e){}
@@ -2359,7 +2378,7 @@ convMenu.addEventListener('click',async e=>{
       c.duels.forEach(d=>{
         mdtxt+='## '+d.question+'\n\n';
         if(d.qwen_text)mdtxt+='**Qwen ('+(d.qwen_model||'')+')**\n\n'+d.qwen_text+'\n\n';
-        if(d.claude_text)mdtxt+='**Claude ('+(d.claude_model||'')+')**\n\n'+d.claude_text+'\n\n';
+        if(d.claude_text)mdtxt+='**'+advNom(d.claude_model)+' ('+(d.claude_model||'')+')**\n\n'+d.claude_text+'\n\n';
       });
       const blob=new Blob([mdtxt],{type:'text/markdown'});
       const a2=document.createElement('a');a2.href=URL.createObjectURL(blob);

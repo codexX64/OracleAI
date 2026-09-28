@@ -14,6 +14,13 @@ ENV DATA_DIR=/app/data \
     HOME=/root \
     PATH="/root/.local/bin:${PATH}"
 
+# Claude Code, pour l'adversaire « claude-code » : l'abonnement, sans clé d'API.
+# En conteneur, il s'authentifie avec CLAUDE_CODE_OAUTH_TOKEN (claude setup-token).
+# Si le téléchargement échoue, l'image se construit quand même : les autres
+# adversaires marchent, et Oracle dit clairement que le binaire manque.
+RUN curl -fsSL https://claude.ai/install.sh | bash \
+    || echo "Claude Code non installé : adversaire claude-code indisponible"
+
 COPY backend ./backend
 COPY frontend ./frontend
 

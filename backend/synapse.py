@@ -102,21 +102,22 @@ def _une_fois(cle, fenetre=600):
 
 # ── ce qu'on raconte ──
 
-def duel(question, verdict, modele_local, modele_claude):
+def duel(question, verdict, modele_local, modele_adverse, nom_adverse="Claude"):
     """Un duel départagé. Les scores, jamais les réponses."""
     gagnant = verdict.get("winner")
     if gagnant not in ("qwen", "claude"):
         return
     q = (verdict.get("qwen") or {}).get("total")
     c = (verdict.get("claude") or {}).get("total")
-    nom = modele_local if gagnant == "qwen" else modele_claude
+    nom = modele_local if gagnant == "qwen" else modele_adverse
     raconter("duel.verdict",
              f"Duel : {nom} l'emporte ({q} contre {c})",
              f"Question : « {str(question)[:160]} »\n"
-             f"Local {modele_local} : {q} · Claude {modele_claude} : {c} · écart {verdict.get('gap')}.",
-             tags=("duel",),
-             meta={"gagnant": gagnant, "local": modele_local, "claude": modele_claude,
-                   "score_local": q, "score_claude": c, "gap": verdict.get("gap")})
+             f"Local {modele_local} : {q} · {nom_adverse} {modele_adverse} : {c} · écart {verdict.get('gap')}.",
+             tags=("duel", str(nom_adverse).lower()),
+             meta={"gagnant": "local" if gagnant == "qwen" else "adversaire",
+                   "local": modele_local, "adversaire": nom_adverse, "modele_adverse": modele_adverse,
+                   "score_local": q, "score_adverse": c, "gap": verdict.get("gap")})
 
 
 def modele(nom):
