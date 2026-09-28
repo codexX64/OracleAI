@@ -9,7 +9,7 @@ Projet [CodexX64](https://github.com/CodexX64).
 ## Fonctionnalités
 
 - **Chat continu** avec un modèle local, mémoire du fil de conversation
-- **Mode duel** : modèle local vs Claude, jugés sur des critères mesurables
+- **Mode duel** : modèle local contre Claude (Claude Code ou API), ChatGPT, Kimi, Mistral, DeepSeek, Gemini, Groq, OpenRouter ou toute API compatible OpenAI, jugés sur des critères mesurables
 - **Juge déterministe** (jamais un LLM) : substance, richesse, structure, concision, latence
 - **Authentification** : comptes multiples, mots de passe Argon2id, 2FA TOTP, codes de secours
 - **Conversations persistantes** (SQLite) avec projets, épinglage, recherche, export Markdown
@@ -56,17 +56,31 @@ cp .env.example .env && nano .env
 chmod +x run.sh && ./run.sh
 ```
 
-## Mode duel (Claude)
+## Mode duel : l'adversaire
 
-Le conteneur monte la session Claude Code de l'hôte :
+`ADVERSAIRE` choisit qui affronte le modèle local :
+
+| Valeur | Adversaire | Authentification |
+|---|---|---|
+| `claude-code` | Claude, par Claude Code | l'abonnement : session de l'hôte, ou `CLAUDE_CODE_OAUTH_TOKEN` en conteneur |
+| `claude-api` | Claude, par l'API Anthropic | `ADVERSAIRE_CLE` |
+| `openai` | ChatGPT | `ADVERSAIRE_CLE` |
+| `kimi` | Kimi (Moonshot) | `ADVERSAIRE_CLE` |
+| `mistral`, `deepseek`, `gemini`, `groq`, `openrouter` | le fournisseur du même nom | `ADVERSAIRE_CLE` |
+| `compatible` | toute API compatible OpenAI | `ADVERSAIRE_URL` (+ clé si elle en demande une) |
+
+Le modèle de l'adversaire se choisit dans les réglages d'Oracle, dans la liste que
+le fournisseur renvoie lui-même : aucun nom n'est deviné.
+
+**Claude Code en installation native** : le conteneur monte la session de l'hôte.
 
 | Hôte | Conteneur | Rôle |
 |---|---|---|
 | `$HOST_HOME/.claude` | `/root/.claude` | identifiants de session |
 | `$HOST_HOME/.local/share/claude` | `/root/.local/share/claude` | binaire Claude Code |
 
-Le binaire est détecté automatiquement, y compris après une mise à jour de
-version. Alternative : passer `CLAUDE_MODE=api` et fournir `ANTHROPIC_API_KEY`.
+**Claude Code installé par le Hub** : l'image embarque Claude Code ; sur une machine
+connectée à l'abonnement, `claude setup-token` donne un jeton à coller à l'installation.
 
 ## Sécurité
 
@@ -95,17 +109,20 @@ sessions : ne pas le supprimer, ne pas le versionner.
 |---|---|
 | `OLLAMA_URL` | URL du serveur Ollama |
 | `OLLAMA_MODEL` | modèle local par défaut |
-| `CLAUDE_MODE` | `cli` (Claude Code) ou `api` (clé) |
-| `CLAUDE_MODEL` | opus / sonnet / haiku |
-| `CLAUDE_BIN` | chemin du binaire si la détection échoue |
-| `ANTHROPIC_API_KEY` | uniquement si `CLAUDE_MODE=api` |
+| `ADVERSAIRE` | qui affronte le modèle local : `claude-code`, `claude-api`, `openai` (ChatGPT), `kimi`, `mistral`, `deepseek`, `gemini`, `groq`, `openrouter`, `compatible` |
+| `ADVERSAIRE_CLE` | clé d'API du fournisseur (sauf `claude-code`) |
+| `ADVERSAIRE_MODELE` | modèle ; vide = choisi dans les réglages, dans la liste renvoyée par le fournisseur |
+| `ADVERSAIRE_URL` / `ADVERSAIRE_NOM` | adresse (`…/v1`) et nom affiché, pour `compatible` |
+| `CLAUDE_CODE_OAUTH_TOKEN` | en conteneur, pour `claude-code` : jeton de `claude setup-token` |
+| `CLAUDE_BIN` | chemin du binaire Claude Code si la détection échoue |
+| `CLAUDE_MODE` / `CLAUDE_MODEL` / `ANTHROPIC_API_KEY` | anciens réglages, toujours lus si `ADVERSAIRE` est vide |
 | `MEMORY_URL` / `MEMORY_API_KEY` | service de mémoire externe (optionnel) |
 | `SYNAPSE_URL` / `SYNAPSE_JETON` | mémoire du homelab (optionnel) : Oracle y raconte les verdicts de duel, les modèles téléchargés et les pannes d'Ollama — jamais les conversations |
 | `ORACLE_HUB_TOKEN` | jeton de service pour un Hub (optionnel) : ouvre l'API, jamais les comptes |
 | `DATA_DIR` | dossier de `oracle.db` et `settings.json` |
 | `HOST_HOME` | home de l'hôte, pour monter la session Claude Code |
 
-Un garde-fou rejette tout modèle Claude hors de la liste Opus / Sonnet / Haiku.
+Un garde-fou rejette tout identifiant contenant « fable » ou « mythos », quel que soit l'adversaire, et tout modèle Claude hors de la liste Opus / Sonnet / Haiku.
 
 ## Conversations et projets
 

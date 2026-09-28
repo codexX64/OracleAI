@@ -3,12 +3,12 @@
   "manifestVersion": 1,
   "id": "oracle",
   "name": "Oracle AI",
-  "version": "1.1.0",
-  "description": "Dialoguer avec une IA locale (Ollama), et la faire s'affronter contre Claude : un juge déterministe départage sur des critères mesurables.",
+  "version": "1.2.0",
+  "description": "IA locale (Ollama) en duel contre Claude, ChatGPT, Kimi ou un autre : un juge déterministe départage sur des critères mesurables.",
   "icon": "sparkle",
   "repository": "https://github.com/CodexX64/oracle",
   "license": "MIT",
-  "minHubVersion": "0.4.0",
+  "minHubVersion": "0.5.63",
   "install": {
     "type": "compose",
     "compose": "deploy/compose.hub.yml",
@@ -25,7 +25,10 @@
       "expect": 200,
       "timeout": "5s"
     },
-    "arch": ["amd64", "arm64"],
+    "arch": [
+      "amd64",
+      "arm64"
+    ],
     "resources": {
       "ramMb": 256,
       "cpu": 0.5,
@@ -65,34 +68,132 @@
     {
       "key": "OLLAMA_MODEL",
       "label": "Modèle local par défaut",
-      "type": "string",
-      "default": "qwen3:14b",
-      "help": "Le modèle d'Ollama qui répond. Changeable à la volée dans l'interface."
-    },
-    {
-      "key": "CLAUDE_MODE",
-      "label": "Accès à Claude (mode duel)",
       "type": "select",
-      "default": "api",
+      "optionsFrom": {
+        "from": {
+          "capability": "llm.chat"
+        },
+        "method": "GET",
+        "path": "/api/tags",
+        "select": "$.models",
+        "map": {
+          "value": "$.name",
+          "label": "$.name"
+        }
+      },
+      "help": "Les modèles installés sur l'Ollama du Hub. Changeable à la volée dans l'interface d'Oracle."
+    },
+    {
+      "key": "ADVERSAIRE",
+      "label": "Adversaire du duel",
+      "type": "select",
+      "default": "claude-code",
+      "required": true,
       "options": [
-        { "value": "api", "label": "Clé API Anthropic" },
-        { "value": "cli", "label": "Claude Code sur l'hôte (installation native seulement)" }
+        {
+          "value": "claude-code",
+          "label": "Claude — par Claude Code (ton abonnement)"
+        },
+        {
+          "value": "claude-api",
+          "label": "Claude — par l'API Anthropic"
+        },
+        {
+          "value": "openai",
+          "label": "ChatGPT (OpenAI)"
+        },
+        {
+          "value": "kimi",
+          "label": "Kimi (Moonshot)"
+        },
+        {
+          "value": "mistral",
+          "label": "Mistral"
+        },
+        {
+          "value": "deepseek",
+          "label": "DeepSeek"
+        },
+        {
+          "value": "gemini",
+          "label": "Gemini (Google)"
+        },
+        {
+          "value": "groq",
+          "label": "Groq"
+        },
+        {
+          "value": "openrouter",
+          "label": "OpenRouter (des centaines de modèles)"
+        },
+        {
+          "value": "compatible",
+          "label": "Autre API compatible OpenAI"
+        }
       ],
-      "help": "En conteneur, seul le mode clé API fonctionne : Claude Code vit sur l'hôte. Sans clé, Oracle reste utilisable en local seul, sans duel."
+      "help": "Qui affronte le modèle local. Sans clé ni jeton, Oracle reste utilisable en local seul, sans duel."
     },
     {
-      "key": "ANTHROPIC_API_KEY",
-      "label": "Clé API Anthropic",
+      "key": "CLAUDE_CODE_TOKEN",
+      "label": "Jeton Claude Code",
       "type": "secret",
-      "help": "Seulement pour le mode duel par API. Vide : pas de duel, le chat local fonctionne."
+      "showIf": {
+        "ADVERSAIRE": [
+          "claude-code"
+        ]
+      },
+      "help": "Sur une machine où Claude Code est connecté à ton abonnement : « claude setup-token », puis colle le jeton ici. Aucune clé d'API n'est utilisée."
     },
     {
-      "key": "CLAUDE_MODEL",
-      "label": "Modèle Claude du duel",
+      "key": "ADVERSAIRE_CLE",
+      "label": "Clé d'API de l'adversaire",
+      "type": "secret",
+      "showIf": {
+        "ADVERSAIRE": [
+          "claude-api",
+          "openai",
+          "kimi",
+          "mistral",
+          "deepseek",
+          "gemini",
+          "groq",
+          "openrouter",
+          "compatible"
+        ]
+      },
+      "help": "La clé du fournisseur choisi : console.anthropic.com, platform.openai.com, platform.moonshot.ai, console.mistral.ai, platform.deepseek.com, aistudio.google.com, console.groq.com ou openrouter.ai."
+    },
+    {
+      "key": "ADVERSAIRE_URL",
+      "label": "Adresse de l'API",
       "type": "string",
-      "default": "claude-opus-4-8",
+      "default": "",
+      "showIf": {
+        "ADVERSAIRE": [
+          "compatible"
+        ]
+      },
+      "help": "Se termine par /v1. Ex. un vLLM, un LM Studio ou un autre serveur compatible OpenAI."
+    },
+    {
+      "key": "ADVERSAIRE_NOM",
+      "label": "Nom affiché de l'adversaire",
+      "type": "string",
+      "default": "",
+      "showIf": {
+        "ADVERSAIRE": [
+          "compatible"
+        ]
+      },
+      "help": "Ce qu'Oracle écrit sur la carte de l'adversaire."
+    },
+    {
+      "key": "ADVERSAIRE_MODELE",
+      "label": "Modèle de l'adversaire",
+      "type": "string",
+      "default": "",
       "advanced": true,
-      "help": "Un garde-fou refuse tout modèle hors des familles opus, sonnet et haiku."
+      "help": "Vide : tu le choisis dans les réglages d'Oracle, dans la liste que le fournisseur renvoie. Pour Claude, seuls opus, sonnet et haiku passent le garde-fou."
     }
   ],
   "api": {
@@ -120,7 +221,7 @@
     {
       "id": "duel",
       "name": "Lancer un duel",
-      "description": "La même question au modèle local et à Claude ; le juge déterministe départage.",
+      "description": "La même question au modèle local et à l'adversaire configuré ; le juge déterministe départage.",
       "icon": "zap",
       "group": "Duel",
       "capability": "ai.duel",
@@ -146,14 +247,21 @@
           "verdict": {
             "type": "object",
             "properties": {
-              "winner": { "type": "string" },
-              "gap": { "type": "number" }
+              "winner": {
+                "type": "string"
+              },
+              "gap": {
+                "type": "number"
+              }
             }
           }
         }
       },
       "sample": {
-        "verdict": { "winner": "qwen", "gap": 0.4 }
+        "verdict": {
+          "winner": "qwen",
+          "gap": 0.4
+        }
       }
     },
     {
@@ -172,14 +280,30 @@
       "output": {
         "type": "object",
         "properties": {
-          "total": { "type": "number" },
-          "judged": { "type": "number" },
-          "qwen_winrate": { "type": "number" },
-          "avg_qwen": { "type": "number" },
-          "avg_claude": { "type": "number" }
+          "total": {
+            "type": "number"
+          },
+          "judged": {
+            "type": "number"
+          },
+          "qwen_winrate": {
+            "type": "number"
+          },
+          "avg_qwen": {
+            "type": "number"
+          },
+          "avg_claude": {
+            "type": "number"
+          }
         }
       },
-      "sample": { "total": 42, "judged": 31, "qwen_winrate": 45, "avg_qwen": 7.1, "avg_claude": 7.6 }
+      "sample": {
+        "total": 42,
+        "judged": 31,
+        "qwen_winrate": 45,
+        "avg_qwen": 7.1,
+        "avg_claude": 7.6
+      }
     }
   ],
   "probes": [
@@ -193,7 +317,11 @@
       },
       "value": "$.ok",
       "states": {
-        "ok": [true, "true", "ok"]
+        "ok": [
+          true,
+          "true",
+          "ok"
+        ]
       },
       "interval": "30s"
     },
@@ -207,7 +335,10 @@
       },
       "value": "$.ollama",
       "states": {
-        "ok": [true, "true"]
+        "ok": [
+          true,
+          "true"
+        ]
       },
       "interval": "1m"
     },
@@ -229,10 +360,20 @@
     "privileged": false,
     "hostNetwork": false,
     "capAdd": [],
-    "egress": ["api.anthropic.com"]
+    "egress": [
+      "claude.ai",
+      "api.anthropic.com",
+      "api.openai.com",
+      "api.moonshot.ai",
+      "api.mistral.ai",
+      "api.deepseek.com",
+      "generativelanguage.googleapis.com",
+      "api.groq.com",
+      "openrouter.ai"
+    ]
   },
   "ai": {
     "exposeActions": true,
-    "hints": "Oracle départage une IA locale et Claude avec un juge déterministe — jamais un LLM. « Palmarès des duels » pour les chiffres ; un duel coûte un appel API Claude, donc n'en lance pas en boucle. Les conversations restent privées : Oracle ne raconte à SYNAPSE (si installé) que les verdicts de duel, les modèles téléchargés et les pannes d'Ollama."
+    "hints": "Oracle départage une IA locale et un adversaire (Claude, ChatGPT, Kimi, Mistral…) avec un juge déterministe — jamais un LLM. « Palmarès des duels » pour les chiffres ; un duel coûte un appel à l'adversaire, donc n'en lance pas en boucle. Les conversations restent privées : Oracle ne raconte à SYNAPSE (si installé) que les verdicts de duel, les modèles téléchargés et les pannes d'Ollama."
   }
 }

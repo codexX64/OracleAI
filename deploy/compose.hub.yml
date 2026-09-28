@@ -17,10 +17,14 @@ services:
       # L'IA locale : l'Ollama enregistré dans le Hub.
       OLLAMA_URL: "{{provider.llm.chat.url}}"
       OLLAMA_MODEL: "{{config.OLLAMA_MODEL}}"
-      # Le duel. En conteneur, Claude passe par l'API : Claude Code vit sur l'hôte.
-      CLAUDE_MODE: "{{config.CLAUDE_MODE}}"
-      ANTHROPIC_API_KEY: "{{config.ANTHROPIC_API_KEY}}"
-      CLAUDE_MODEL: "{{config.CLAUDE_MODEL}}"
+      # L'adversaire du duel : Claude Code (jeton d'abonnement), API Anthropic,
+      # ChatGPT, Kimi, Mistral, DeepSeek, Gemini, Groq, OpenRouter ou compatible.
+      ADVERSAIRE: "{{config.ADVERSAIRE}}"
+      ADVERSAIRE_CLE: "{{config.ADVERSAIRE_CLE}}"
+      ADVERSAIRE_MODELE: "{{config.ADVERSAIRE_MODELE}}"
+      ADVERSAIRE_URL: "{{config.ADVERSAIRE_URL}}"
+      ADVERSAIRE_NOM: "{{config.ADVERSAIRE_NOM}}"
+      CLAUDE_CODE_OAUTH_TOKEN: "{{config.CLAUDE_CODE_TOKEN}}"
       ORACLE_HUB_TOKEN: {{config.HUB_TOKEN}}
       # SYNAPSE, la mémoire du homelab : Oracle y raconte les verdicts de duel,
       # les modèles téléchargés et les pannes d'Ollama — jamais les conversations.
