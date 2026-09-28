@@ -6,7 +6,7 @@
   "version": "1.2.0",
   "description": "IA locale (Ollama) en duel contre Claude, ChatGPT, Kimi ou un autre : un juge déterministe départage sur des critères mesurables.",
   "icon": "sparkle",
-  "repository": "https://github.com/CodexX64/oracle",
+  "repository": "https://github.com/codexX64/OracleAI",
   "license": "MIT",
   "minHubVersion": "0.5.63",
   "install": {
