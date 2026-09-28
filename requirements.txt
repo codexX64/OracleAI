@@ -1,0 +1,8 @@
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+httpx==0.28.1
+pydantic==2.10.4
+argon2-cffi==23.1.0
+pyotp==2.9.0
+qrcode==8.0
+itsdangerous==2.2.0

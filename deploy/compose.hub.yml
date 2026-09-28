@@ -1,0 +1,38 @@
+# Oracle AI installé par le Hub.
+# Les {{...}} sont remplacés à l'installation : secrets générés, port d'hôte,
+# volume nommé et réseau partagé du Hub.
+services:
+  oracle:
+    image: ghcr.io/codexx64/oracle-ai:{{config.IMAGE_TAG}}
+    container_name: {{service.host}}
+    restart: unless-stopped
+    networks: [hub]
+    ports:
+      - "{{hostport.http}}:8112"
+    volumes:
+      - {{volume.data}}:/app/data
+    security_opt: ["no-new-privileges:true"]
+    environment:
+      DATA_DIR: /app/data
+      # L'IA locale : l'Ollama enregistré dans le Hub.
+      OLLAMA_URL: "{{provider.llm.chat.url}}"
+      OLLAMA_MODEL: "{{config.OLLAMA_MODEL}}"
+      # Le duel. En conteneur, Claude passe par l'API : Claude Code vit sur l'hôte.
+      CLAUDE_MODE: "{{config.CLAUDE_MODE}}"
+      ANTHROPIC_API_KEY: "{{config.ANTHROPIC_API_KEY}}"
+      CLAUDE_MODEL: "{{config.CLAUDE_MODEL}}"
+      ORACLE_HUB_TOKEN: {{config.HUB_TOKEN}}
+      # SYNAPSE, la mémoire du homelab : Oracle y raconte les verdicts de duel,
+      # les modèles téléchargés et les pannes d'Ollama — jamais les conversations.
+      # Le jeton est un jeton de cerveau dérivé par le Hub, pour ce seul service.
+      SYNAPSE_URL: "{{provider.memory.learn.url}}"
+      SYNAPSE_JETON: "{{provider.memory.learn.jetonCerveau}}"
+
+networks:
+  hub:
+    name: {{hub.network}}
+    external: true
+
+volumes:
+  {{volume.data}}:
+    name: {{volume.data}}
