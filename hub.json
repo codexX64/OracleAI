@@ -8,7 +8,7 @@
   "icon": "sparkle",
   "repository": "https://github.com/codexX64/OracleAI",
   "license": "MIT",
-  "minHubVersion": "0.5.63",
+  "minHubVersion": "0.5.64",
   "install": {
     "type": "compose",
     "compose": "deploy/compose.hub.yml",
@@ -79,9 +79,13 @@
         "map": {
           "value": "$.name",
           "label": "$.name"
-        }
+        },
+        "exclude": [
+          "embed"
+        ]
       },
-      "help": "Les modèles installés sur l'Ollama du Hub. Changeable à la volée dans l'interface d'Oracle."
+      "help": "Les modèles de conversation installés sur l'Ollama du Hub. Changeable à la volée dans l'interface d'Oracle.",
+      "default": "qwen3:14b"
     },
     {
       "key": "ADVERSAIRE",
